@@ -18,16 +18,17 @@ class TorchModel(nn.Module):
     def __init__(self, sentence_length, vector_dim, vocab):
         super(TorchModel, self).__init__()
         self.embedding = nn.Embedding(len(vocab), vector_dim)
-        # self.pool = nn.AvgPool1d(sentence_length)
-        self.pool = nn.MaxPool1d(sentence_length)
-        self.classify = nn.Linear(vector_dim, 1)
+        self.pool = nn.AvgPool1d(sentence_length)
+        self.rnn = nn.RNN(vector_dim, 10, bias=False, batch_first=True)
+        self.liner = nn.Linear(10, 1)
         self.activation = torch.sigmoid
         self.loss = nn.functional.mse_loss
 
     def forward(self, x, y=None):
-        x = self.embedding(x)                       #x为输入语句对应的字典索引 (batch_size * sen_len) -> (batch_size * sen_len * vector_dim)
-        x = self.pool(x.transpose(1,2)).squeeze()   # (batch_size * sen_len * vector_dim) -> (batch_size * vector_dim)
-        x = self.classify(x)                        # (batch_size * vector_dim) -> (batch_size * 1)
+        x = self.embedding(x)                           #x为输入语句对应的字典索引 (batch_size * sen_len) -> (batch_size * sen_len * vector_dim)
+        x = self.rnn(x)[0]                              # (batch_size * sen_len * vector_dim) -> (batch_size * sen_len * 10)
+        x = self.pool(x.transpose(1,2)).squeeze()       # (batch_size * sen_len * 10) -> (batch_size * 10)
+        x = self.liner(x)                               # (batch_size * 10) -> (batch_size * 1)
         y_pred = self.activation(x)
         if y is not None:
             return self.loss(y, y_pred)
