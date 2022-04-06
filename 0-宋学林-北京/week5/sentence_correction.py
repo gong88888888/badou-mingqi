@@ -22,13 +22,46 @@ class Corrector:
 
     #实际上不光是同音字，同形字等也可以加入，本质上是常用的错字
     def load_tongyinzi(self, path):
-        #TODO
-        pass
+        tongyinzi_dict = {}
+        with open(path, encoding="utf8") as f:
+            for line in f:
+                char, tongyin_chars = line.split()
+                tongyinzi_dict[char] = list(tongyin_chars)
+        return tongyinzi_dict
+
+    #根据替换字逐句计算成句概率的提升值
+    def get_candidate_sentence_prob(self, candidates, char_list, index):
+        if candidates == []:
+            return [-1]
+        result = []
+        for char in candidates:
+            char_list[index] = char
+            sentence = "".join(char_list)
+            sentence_prob = self.language_model.predict(sentence)
+            #减去基线值，得到提升了多少
+            sentence_prob -= self.sentence_prob_baseline
+            result.append(sentence_prob)
+        return result
 
     #纠错逻辑
     def correction(self, string):
-        #TODO
-        pass
+        char_list = list(string)
+        fix = {}
+        #计算一个原句的成句概率
+        self.sentence_prob_baseline = self.language_model.predict(string)
+        for index, char in enumerate(char_list):
+            candidates = self.sub_dict.get(char, [])
+            #注意使用char_list的拷贝，以免直接修改了原始内容
+            candidate_probs = self.get_candidate_sentence_prob(candidates, copy.deepcopy(char_list), index)
+            #如果成句概率的提升大于一定阈值，则记录替换结果
+            if max(candidate_probs) > self.threshold:
+                #找到最大成句概率对应的替换字
+                sub_char = candidates[candidate_probs.index(max(candidate_probs))]
+                print("第%d个字建议修改：%s -> %s, 概率提升： %f" %(index, char, sub_char, max(candidate_probs)))
+                fix[index] = sub_char
+        #替换后字符串
+        char_list = [fix[i] if i in fix else char for i, char in enumerate(char_list)]
+        return "".join(char_list)
 
 
 corpus = open("财经.txt", encoding="utf8").readlines()
